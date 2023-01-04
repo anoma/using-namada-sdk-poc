@@ -19,6 +19,7 @@ npm run start
 
 # visit localhost:3000
 ```
+> :warning: the code has some hard coded values (url of node and the address to be queried) for now 
 
 - [About](#about)
 - [Project](#project)
@@ -127,7 +128,7 @@ useEffect(() => {
     // we can perform calls to auto generated functions
     await performRequestFromUi();
   };
-  
+
   asyncBlock();
 }, []);
 ```
