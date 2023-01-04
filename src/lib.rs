@@ -10,7 +10,6 @@ use web_namada::perform_request;
 // in the real situation the Namada SDK is calling
 #[wasm_bindgen]
 pub async fn perform_request_from_ui() {
-    log("perform_request_from_ui");
     let path_for_retrieving_balance_for_account = "/shell/value/#atest1v4ehgw36x3prswzxggunzv6pxqmnvdj9xvcyzvpsggeyvs3cg9qnywf589qnwvfsg5erg3fkl09rg5/balance/#atest1d9khqw36xyuyxdf5g4qnjwfkxvc52vf48qu5yseexcm52wpcg56ygd3sxdp52s2z89znsvz93amfph".to_string();
     let prove = false;
     let data = Some("".to_string());

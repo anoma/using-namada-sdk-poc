@@ -59,7 +59,7 @@ pub async fn perform_request(
     // create network utils object
     let networking_utils = NetworkingUtils::new();
 
-    // TODO: we actually need more than just the data, we need info
+    // we now call the foreign function to fetch the data from the network
     let response_future = networking_utils.rpc_call(
         path_as_js_value,
         prove,
@@ -68,18 +68,23 @@ pub async fn perform_request(
     );
     let response_result = response_future.await;
 
+    // we try to extract the data from it
     if let Ok(response_as_js_value) = response_result {
-        let aaa = js_value_to_response_query_serde(response_as_js_value);
+        let response_temporary_object = js_value_to_response_query_serde(response_as_js_value);
 
         let encoded_response_query = EncodedResponseQuery {
-            data: aaa.data,
-            info: aaa.info,
-            proof: aaa.proof,
+            data: response_temporary_object.data,
+            info: response_temporary_object.info,
+            proof: response_temporary_object.proof,
         };
         Ok(encoded_response_query)
     } else {
         let response_error_maybe = response_result.err();
         let response_error = response_error_maybe.unwrap();
+        let response_error_as_string_maybe = JsValue::as_string(&response_error);
+        let response_error_as_string = response_error_as_string_maybe.unwrap();
+        log("Err in perform_request");
+        log(response_error_as_string.as_str());
         Err(std::io::Error::from(ErrorKind::Other))
     }
 }
@@ -119,14 +124,7 @@ impl NamadaClient for NamadaWebClient {
         let call_result =
             perform_request(path, prove, data_as_string_maybe, Some(height_as_string)).await;
 
-        // we try to extract the value from a successful call
-        // TODO: we still need more than just the data
         if let Ok(call_value) = call_result {
-            // let response_query = EncodedResponseQuery {
-            //     data: call_value.as_bytes().to_vec(),
-            //     info: "no_info".to_string(),
-            //     proof: None,
-            // };
             return Ok(call_value);
         }
 
