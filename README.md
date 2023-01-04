@@ -60,13 +60,21 @@ The idea is that we use `namada` dependency and from there we can use various ca
 Seems easy, but what is the `webClient`. It is a client that we had to develop for our platform (internet browser) specific use case. We can implement it by implementing a structure that implements `namada::ledger::queries::types::Client` trait. note that this trait has a default implementation for `simple_request` so we only have to implement `request`. It looks like this:
 
 ```rust
-async fn request(
-    &self,
-    path: String,
-    data: Option<Vec<u8>>,
-    height: Option<BlockHeight>,
-    prove: bool,
-) -> Result<EncodedResponseQuery, Self::Error>;
+#[async_trait::async_trait(?Send)]
+pub trait NamadaClient {
+  type Error: From<std::io::Error>;
+
+  async fn simple_request(&self, path: String) -> Result<Vec<u8>, Self::Error> {
+      // has a default implementation
+  }
+
+  async fn request(
+      &self,
+      path: String,
+      data: Option<Vec<u8>>,
+      height: Option<BlockHeight>,
+      prove: bool,
+  ) -> Result<EncodedResponseQuery, Self::Error>;
 ```
 there is an implementation in this project at `src/web_namada/mod.rs`. You will see that it is using foreign functions like this:
 
