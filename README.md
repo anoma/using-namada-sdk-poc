@@ -75,6 +75,7 @@ pub trait NamadaClient {
       height: Option<BlockHeight>,
       prove: bool,
   ) -> Result<EncodedResponseQuery, Self::Error>;
+}
 ```
 there is an implementation in this project at `src/web_namada/mod.rs`. You will see that it is using foreign functions like this:
 
