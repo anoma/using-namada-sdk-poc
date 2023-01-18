@@ -1,9 +1,14 @@
 use std::io::ErrorKind;
 use std::str;
+use std::str::FromStr;
 
-use crate::namada_sdk::fake_types::{BlockHeight, EncodedResponseQuery, ResponseQuery};
+use crate::namada_sdk::fake_types::EncodedResponseQuery;
 use crate::namada_sdk::NamadaClient;
+use namada::ledger::rpc::get_token_balance;
+use namada::types::address::Address;
+use namada::types::storage::BlockHeight;
 use serde::{Deserialize, Serialize};
+use tendermint_rpc::{Client as TendermintClient, Error, SimpleRequest};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 
@@ -16,7 +21,7 @@ pub struct ResponseQuerySerde {
 
 /// ResponseQuerySerde -> JsValue
 #[wasm_bindgen]
-pub fn response_query_serde_to_js_value(
+pub fn _response_query_serde_to_js_value(
     data: Vec<u8>,
     info: String,
     proof: Option<String>,
@@ -24,7 +29,7 @@ pub fn response_query_serde_to_js_value(
     let response_query_serde = ResponseQuerySerde {
         data: data,
         info: info,
-        proof: proof,
+        proof: None::<String>,
     };
     serde_wasm_bindgen::to_value(&response_query_serde).unwrap()
 }
@@ -75,7 +80,7 @@ pub async fn perform_request(
         let encoded_response_query = EncodedResponseQuery {
             data: response_temporary_object.data,
             info: response_temporary_object.info,
-            proof: response_temporary_object.proof,
+            proof: None,
         };
         Ok(encoded_response_query)
     } else {
@@ -86,6 +91,64 @@ pub async fn perform_request(
         log("Err in perform_request");
         log(response_error_as_string.as_str());
         Err(std::io::Error::from(ErrorKind::Other))
+    }
+}
+
+pub async fn perform_request_helper(rpc_payload: String) -> Result<String, std::io::Error> {
+    // create network utils object
+    let networking_utils = NetworkingUtils::new();
+
+    // we now call the foreign function to fetch the data from the network
+    let rpc_payload_as_js_value = JsValue::from_str(rpc_payload.as_str());
+    let response_future = networking_utils.rpc_call_with_stringified_json(rpc_payload_as_js_value);
+    let response_result = response_future.await;
+
+    // we try to extract the data from it
+    if let Ok(response_as_js_value) = response_result {
+        let response_value_maybe = response_as_js_value.as_string();
+        let response_value = response_value_maybe.unwrap();
+        Ok(response_value)
+    } else {
+        let response_error_maybe = response_result.err();
+        let response_error = response_error_maybe.unwrap();
+        let response_error_as_string_maybe = JsValue::as_string(&response_error);
+        let response_error_as_string = response_error_as_string_maybe.unwrap();
+        log("Err in perform_request");
+        log(response_error_as_string.as_str());
+        Err(std::io::Error::from(ErrorKind::Other))
+    }
+}
+
+/// this is wrapping the usage of get_token_balance from the SDK
+pub async fn get_token_balance_wrapper(
+    account_address: String,
+    token_address: String,
+) -> Result<(), std::io::Error> {
+    let namada_web_client = NamadaWebClient;
+    let account_address = Address::from_str(account_address.as_str()).unwrap();
+    let token_address = Address::from_str(token_address.as_str()).unwrap();
+    let token_balance_maybe =
+        get_token_balance(&namada_web_client, &account_address, &token_address).await;
+    let token_balance = token_balance_maybe.unwrap();
+    let token_balance = token_balance.to_string();
+    log(format!("token_balance: {token_balance}").as_str());
+    Ok(())
+}
+
+#[async_trait::async_trait]
+impl TendermintClient for NamadaWebClient {
+    async fn perform<R>(&self, request: R) -> Result<R::Response, Error>
+    where
+        R: SimpleRequest,
+    {
+        log("now we should call the js callback");
+        // so here we would like to perform that async call to js
+        // to make the network request, if you uncomment the next lines you will see the problem
+        // let json = request.into_json();
+        // let networking_utils = NetworkingUtils::new();
+        // let json_as_js_value = JsValue::from_str(json.as_str());
+        // let response = perform_request_helper(json).await;
+        tendermint_rpc::response::Response::from_string("response.unwrap()")
     }
 }
 
@@ -158,6 +221,17 @@ extern "C" {
         prove: bool,
         data: JsValue,
         height: JsValue,
+    ) -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(
+        catch,
+        method,
+        js_class = "NetworkingUtils",
+        js_name = "rpcCallWithStringifiedJson"
+    )]
+    async fn rpc_call_with_stringified_json(
+        this: &NetworkingUtils,
+        abci_query_payload_json: JsValue,
     ) -> Result<JsValue, JsValue>;
 }
 

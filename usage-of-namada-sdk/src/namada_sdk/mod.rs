@@ -1,6 +1,7 @@
 pub mod fake_types;
 
-use fake_types::{BlockHeight, EncodedResponseQuery, Epoch};
+use fake_types::EncodedResponseQuery;
+use namada::types::storage::BlockHeight;
 
 // This is containing a trait similar to the one that is to be exported from
 // Namada SDK. I just made this mock version to be able to run the js side

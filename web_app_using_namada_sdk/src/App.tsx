@@ -3,7 +3,7 @@ import "./App.css";
 import { init, performRequestFromUi } from "./utils/namadaSdk/index";
 function App() {
   const [inputFieldContent, setInputFieldContent] = useState(
-    "atest1d9khqw36xyuyxdf5g4qnjwfkxvc52vf48qu5yseexcm52wpcg56ygd3sxdp52s2z89znsvz93amfph"
+    "atest1d9khqw36gguyx3p4g4rrjvfcx9pnv32rx3q5vd3kx5cn2wzxgs6n2v3kxycnx32z8q6nqs2x5anmwx"
   );
   useEffect(() => {
     // we have to put this to async as we call async funcs
@@ -16,7 +16,7 @@ function App() {
   const fetchBalanceOfAddress = () => {
     // we have to put this to async as we call async funcs
     const asyncBlock = async () => {
-      await performRequestFromUi();
+      await performRequestFromUi(inputFieldContent);
     };
     asyncBlock();
   };

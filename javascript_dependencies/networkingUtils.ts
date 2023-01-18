@@ -60,6 +60,34 @@ export class NetworkingUtils {
     }
   };
 
+  rpcCallWithStringifiedJson = async (
+    abciQueryPayloadJson: string
+  ): Promise<any> => {
+    try {
+      const rpcResponse = await fetch("http://127.0.0.1:27657", {
+        method: "POST",
+        body: abciQueryPayloadJson,
+      });
+      const rpcResponseData = (await rpcResponse.json()) as {
+        result: { response: { info: string; value: string; proof?: string } };
+      };
+      const response = rpcResponseData.result.response;
+      const { info, value, proof } = response;
+
+      // have to turn the borsh encoded data to byte array
+      const utf8Encode = new TextEncoder();
+      const valueAsByteArray = utf8Encode.encode(value);
+      const responseQuery = response_query_serde_to_js_value(
+        valueAsByteArray,
+        info,
+        proof
+      );
+      return responseQuery;
+    } catch {
+      return Promise.reject("error while performing the network request");
+    }
+  };
+
   //   method1 = async (someParameter: number): Promise<string> => {
   //     return `got: ${someParameter} at NetworkingUtils.call`;
   //   };
