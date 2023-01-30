@@ -1,0 +1,5 @@
+# ignore content
+*
+# except this file to keep the directory
+!.gitignore
+!index.ts
