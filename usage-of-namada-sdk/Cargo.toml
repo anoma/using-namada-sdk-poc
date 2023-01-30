@@ -11,18 +11,31 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 
 [dependencies]
+base64 = "0.21"
+web-sys = { version = "0.3.4", features = [
+    'Headers',
+    'Request',
+    'RequestInit',
+    'RequestMode',
+    'Response',
+    'Window',
+] }
 async-std = { version = "=1.11.0", features = ["unstable"] }
 async-trait = "0.1.51"
 js-sys = "0.3.60"
 wasm-bindgen = "0.2.63"
 wasm-bindgen-futures = "0.4.33"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1", default-features = false, features = ["std"] }
 serde-wasm-bindgen = "0.4"
-
-# The `console_error_panic_hook` crate provides better debugging of panics by
-# logging them with `console.error`. This is great for development, but requires
-# all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
-# code size when deploying.
+getrandom = { version = "0.2", features = ["js"] }
+namada = { git = "https://github.com/anoma/namada", branch = "mariari/shared-sdk-integration", default-features = false, features = [
+    "abciplus",
+    "namada-sdk",
+] }
+tendermint-rpc = { git = "https://github.com/heliaxdev/tendermint-rs.git", branch = "murisi/trait-client", default-features = false, features = [
+    "trait-client",
+] }
 console_error_panic_hook = { version = "0.1.6", optional = true }
 
 # `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
@@ -32,6 +45,42 @@ wee_alloc = { version = "0.4.5", optional = true }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"
+
+[patch.crates-io]
+# TODO temp patch for <https://github.com/near/borsh-rs/issues/82>, <https://github.com/near/borsh-rs/issues/84> and more tba.
+borsh = { git = "https://github.com/heliaxdev/borsh-rs.git", rev = "cd5223e5103c4f139e0c54cf8259b7ec5ec4073a" }
+borsh-derive = { git = "https://github.com/heliaxdev/borsh-rs.git", rev = "cd5223e5103c4f139e0c54cf8259b7ec5ec4073a" }
+borsh-derive-internal = { git = "https://github.com/heliaxdev/borsh-rs.git", rev = "cd5223e5103c4f139e0c54cf8259b7ec5ec4073a" }
+borsh-schema-derive-internal = { git = "https://github.com/heliaxdev/borsh-rs.git", rev = "cd5223e5103c4f139e0c54cf8259b7ec5ec4073a" }
+# The following 3 crates patch a work-around for https://github.com/smol-rs/polling/issues/38 breaking namada tooling build with nightly 2022-05-20
+polling = { git = "https://github.com/heliaxdev/polling.git", rev = "02a655775282879459a3460e2646b60c005bca2c" }
+async-io = { git = "https://github.com/heliaxdev/async-io.git", rev = "9285dad39c9a37ecd0dbd498c5ce5b0e65b02489" }
+async-process = { git = "https://github.com/heliaxdev/async-process.git", rev = "e42c527e87d937da9e01aaeb563c0b948580dc89" }
+# borsh = {path = "../borsh-rs/borsh"}
+# borsh-derive = {path = "../borsh-rs/borsh-derive"}
+# borsh-derive-internal = {path = "../borsh-rs/borsh-derive-internal"}
+# borsh-schema-derive-internal = {path = "../borsh-rs/borsh-schema-derive-internal"}
+
+# patched to a commit on the `eth-bridge-integration+consensus-timeout` branch of our fork
+tendermint = { git = "https://github.com/heliaxdev/tendermint-rs.git", branch = "murisi/trait-client" }
+tendermint-config = { git = "https://github.com/heliaxdev/tendermint-rs.git", branch = "murisi/trait-client" }
+tendermint-proto = { git = "https://github.com/heliaxdev/tendermint-rs.git", branch = "murisi/trait-client" }
+tendermint-rpc = { git = "https://github.com/heliaxdev/tendermint-rs.git", branch = "murisi/trait-client", default-features = false }
+tendermint-testgen = { git = "https://github.com/heliaxdev/tendermint-rs.git", branch = "murisi/trait-client" }
+tendermint-light-client = { git = "https://github.com/heliaxdev/tendermint-rs.git", branch = "murisi/trait-client" }
+tendermint-light-client-verifier = { git = "https://github.com/heliaxdev/tendermint-rs.git", branch = "murisi/trait-client" }
+
+# patched to a commit on the `eth-bridge-integration` branch of our fork
+ibc = { git = "https://github.com/heliaxdev/ibc-rs.git", rev = "f4703dfe2c1f25cc431279ab74f10f3e0f6827e2" }
+ibc-proto = { git = "https://github.com/heliaxdev/ibc-rs.git", rev = "f4703dfe2c1f25cc431279ab74f10f3e0f6827e2" }
+ibc-relayer = { git = "https://github.com/heliaxdev/ibc-rs.git", rev = "f4703dfe2c1f25cc431279ab74f10f3e0f6827e2" }
+
+# patched to a commit on the `eth-bridge-integration` branch of our fork
+tower-abci = { git = "https://github.com/heliaxdev/tower-abci.git", rev = "fcc0014d0bda707109901abfa1b2f782d242f082" }
+
+# patched to the yanked 1.2.0 until masp updates bitvec
+funty = { git = "https://github.com/bitvecto-rs/funty/", rev = "7ef0d890fbcd8b3def1635ac1a877fc298488446" }
+
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.

@@ -1,6 +1,7 @@
 pub mod fake_types;
 
-use fake_types::{BlockHeight, EncodedResponseQuery, Epoch};
+use fake_types::EncodedResponseQuery;
+use namada::types::storage::BlockHeight;
 
 // This is containing a trait similar to the one that is to be exported from
 // Namada SDK. I just made this mock version to be able to run the js side
@@ -27,10 +28,3 @@ pub trait NamadaClient {
         prove: bool,
     ) -> Result<EncodedResponseQuery, Self::Error>;
 }
-
-// pub async fn query_epoch<C: Client + NamadaClient + Sync>(client: &C) -> Epoch {
-// this is the original, it needs to satisfy Client, which is
-// use tendermint_rpc::Client;
-// pub async fn query_epoch<C: NamadaClient + Sync>(client: &C) -> Epoch {
-//     Epoch(1)
-// }
