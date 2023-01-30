@@ -28,10 +28,3 @@ pub trait NamadaClient {
         prove: bool,
     ) -> Result<EncodedResponseQuery, Self::Error>;
 }
-
-// pub async fn query_epoch<C: Client + NamadaClient + Sync>(client: &C) -> Epoch {
-// this is the original, it needs to satisfy Client, which is
-// use tendermint_rpc::Client;
-// pub async fn query_epoch<C: NamadaClient + Sync>(client: &C) -> Epoch {
-//     Epoch(1)
-// }

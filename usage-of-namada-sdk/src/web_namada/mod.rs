@@ -1,16 +1,21 @@
+use base64::{engine::general_purpose, Engine as _};
 use std::io::ErrorKind;
 use std::str;
 use std::str::FromStr;
 
 use crate::namada_sdk::fake_types::EncodedResponseQuery;
-use crate::namada_sdk::NamadaClient;
+use namada::ledger::queries::Client as NamadaClient;
 use namada::ledger::rpc::get_token_balance;
 use namada::types::address::Address;
 use namada::types::storage::BlockHeight;
 use serde::{Deserialize, Serialize};
-use tendermint_rpc::{Client as TendermintClient, Error, SimpleRequest};
+use tendermint_rpc::error::Error as RpcError;
+use tendermint_rpc::response::Response as TendermintResponse;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
+
+extern crate console_error_panic_hook;
+use std::panic;
 
 #[derive(Serialize, Deserialize)]
 pub struct ResponseQuerySerde {
@@ -20,8 +25,9 @@ pub struct ResponseQuerySerde {
 }
 
 /// ResponseQuerySerde -> JsValue
+/// This is useful for the usage in TypeScript
 #[wasm_bindgen]
-pub fn _response_query_serde_to_js_value(
+pub fn response_query_serde_to_js_value(
     data: Vec<u8>,
     info: String,
     proof: Option<String>,
@@ -39,6 +45,9 @@ pub fn js_value_to_response_query_serde(js_value: JsValue) -> ResponseQuerySerde
     serde_wasm_bindgen::from_value(js_value).unwrap()
 }
 
+/// NamadaWebClient this is the web specific client that implements the Client trait from the SDK
+/// The most important method is `request`, mostly otherwise anything here should be utils for
+/// transforming the data and error handling
 pub struct NamadaWebClient;
 
 /// performs a network call using js. Takes Namada storage path, data
@@ -61,95 +70,75 @@ pub async fn perform_request(
     let height_or_zero = height.unwrap_or("0".to_string());
     let height_as_js_value = JsValue::from_str(height_or_zero.as_str());
 
-    // create network utils object
+    // create network utils object, this is a class defined in the accompanying
+    // TypeScript code, that is mapped to Rust in the extern "C" block
+    // at the end if this file
     let networking_utils = NetworkingUtils::new();
 
     // we now call the foreign function to fetch the data from the network
-    let response_future = networking_utils.rpc_call(
-        path_as_js_value,
-        prove,
-        data_as_js_value,
-        height_as_js_value,
-    );
-    let response_result = response_future.await;
+    let response_result = networking_utils
+        .rpc_call(
+            path_as_js_value,
+            prove,
+            data_as_js_value,
+            height_as_js_value,
+        )
+        .await;
 
-    // we try to extract the data from it
-    if let Ok(response_as_js_value) = response_result {
-        let response_temporary_object = js_value_to_response_query_serde(response_as_js_value);
-
-        let encoded_response_query = EncodedResponseQuery {
-            data: response_temporary_object.data,
-            info: response_temporary_object.info,
-            proof: None,
-        };
-        Ok(encoded_response_query)
-    } else {
+    // if errored we return
+    if response_result.is_err() {
         let response_error_maybe = response_result.err();
         let response_error = response_error_maybe.unwrap();
         let response_error_as_string_maybe = JsValue::as_string(&response_error);
-        let response_error_as_string = response_error_as_string_maybe.unwrap();
-        log("Err in perform_request");
-        log(response_error_as_string.as_str());
-        Err(std::io::Error::from(ErrorKind::Other))
+        let _response_error_as_string = response_error_as_string_maybe.unwrap();
+        return Err(std::io::Error::from(ErrorKind::Other));
     }
+
+    // otherwise extract the result and return it
+    //
+    // data is Borsh serialized and base64 encoded as it came from network
+    // however we need to pass it back to the SDK in Borsh serialized byte array
+    // example when fetching the balance, the network returns us
+    // "ABCl1OgAAAA="
+    // which translates to
+    // Amount {micro: 1000000}
+    // in Rust
+    let response = response_result.unwrap();
+    // we turn the data to EncodedResponseQuery
+    let response_temporary_object = js_value_to_response_query_serde(response);
+    // but the data field contains byte array but as base64 encoded, we need non base64 encoded
+    let data_as_str = std::str::from_utf8(&response_temporary_object.data);
+    // now we have data in string
+    let borsh_encoded_byte_array = general_purpose::STANDARD
+        .decode(data_as_str.unwrap())
+        .unwrap();
+    // now it is not base64 encoded anymore
+    let encoded_response_query = EncodedResponseQuery {
+        data: borsh_encoded_byte_array,
+        info: response_temporary_object.info,
+        proof: None,
+    };
+    Ok(encoded_response_query)
 }
 
-pub async fn perform_request_helper(rpc_payload: String) -> Result<String, std::io::Error> {
-    // create network utils object
-    let networking_utils = NetworkingUtils::new();
-
-    // we now call the foreign function to fetch the data from the network
-    let rpc_payload_as_js_value = JsValue::from_str(rpc_payload.as_str());
-    let response_future = networking_utils.rpc_call_with_stringified_json(rpc_payload_as_js_value);
-    let response_result = response_future.await;
-
-    // we try to extract the data from it
-    if let Ok(response_as_js_value) = response_result {
-        let response_value_maybe = response_as_js_value.as_string();
-        let response_value = response_value_maybe.unwrap();
-        Ok(response_value)
-    } else {
-        let response_error_maybe = response_result.err();
-        let response_error = response_error_maybe.unwrap();
-        let response_error_as_string_maybe = JsValue::as_string(&response_error);
-        let response_error_as_string = response_error_as_string_maybe.unwrap();
-        log("Err in perform_request");
-        log(response_error_as_string.as_str());
-        Err(std::io::Error::from(ErrorKind::Other))
-    }
-}
-
-/// this is wrapping the usage of get_token_balance from the SDK
-pub async fn get_token_balance_wrapper(
+/// wraps SDK usage for balance fetching and makes it usable by strings
+pub async fn get_token_balance_by_account_and_token(
     account_address: String,
     token_address: String,
-) -> Result<(), std::io::Error> {
+) -> Result<String, std::io::Error> {
+    // prepare parameters
     let namada_web_client = NamadaWebClient;
     let account_address = Address::from_str(account_address.as_str()).unwrap();
     let token_address = Address::from_str(token_address.as_str()).unwrap();
+
+    // performing the query using a function from the SDK
     let token_balance_maybe =
         get_token_balance(&namada_web_client, &account_address, &token_address).await;
-    let token_balance = token_balance_maybe.unwrap();
-    let token_balance = token_balance.to_string();
-    log(format!("token_balance: {token_balance}").as_str());
-    Ok(())
-}
 
-#[async_trait::async_trait]
-impl TendermintClient for NamadaWebClient {
-    async fn perform<R>(&self, request: R) -> Result<R::Response, Error>
-    where
-        R: SimpleRequest,
-    {
-        log("now we should call the js callback");
-        // so here we would like to perform that async call to js
-        // to make the network request, if you uncomment the next lines you will see the problem
-        // let json = request.into_json();
-        // let networking_utils = NetworkingUtils::new();
-        // let json_as_js_value = JsValue::from_str(json.as_str());
-        // let response = perform_request_helper(json).await;
-        tendermint_rpc::response::Response::from_string("response.unwrap()")
-    }
+    // prepare the return data
+    let token_balance = token_balance_maybe.unwrap();
+    let token_balance_as_string = token_balance.to_string();
+    Ok(token_balance_as_string)
 }
 
 /// this implements the required method in `Client` train
@@ -158,18 +147,17 @@ impl TendermintClient for NamadaWebClient {
 impl NamadaClient for NamadaWebClient {
     type Error = std::io::Error;
 
-    /// this has to be implemented by the consumer as in web
-    /// we cannot use the `HttpClient` of Tendermint
+    // the SDK expects this to be implemented to do the actual network
+    // calls in a platform specific way
     async fn request(
         &self,
         path: String,
         data: Option<Vec<u8>>,
-        height: Option<BlockHeight>,
+        _height: Option<BlockHeight>,
         prove: bool,
     ) -> Result<EncodedResponseQuery, Self::Error> {
         // transform block height
-        let BlockHeight(height_as_u64) = height.unwrap();
-        let height_as_string = height_as_u64.to_string();
+        let height_as_string = 0.to_string();
 
         // transform data
         let data_as_string_maybe = match data {
@@ -187,17 +175,23 @@ impl NamadaClient for NamadaWebClient {
         let call_result =
             perform_request(path, prove, data_as_string_maybe, Some(height_as_string)).await;
 
-        if let Ok(call_value) = call_result {
-            return Ok(call_value);
+        // if it errored we return here
+        if call_result.is_err() {
+            return Err(std::io::Error::from(ErrorKind::Other));
         }
 
-        // else we return an error
-        let call_error_maybe = call_result.err();
-        let call_error = call_error_maybe.unwrap();
-        let call_error_as_string = call_error.to_string();
-        log("Err in request");
-        log(call_error_as_string.as_str());
-        Err(std::io::Error::from(ErrorKind::Other))
+        let encoded_response_query = call_result.unwrap();
+        Ok(encoded_response_query)
+    }
+
+    async fn perform<R>(&self, request: R) -> Result<R::Response, RpcError>
+    where
+        R: tendermint_rpc::SimpleRequest,
+    {
+        let request_json = request.into_json();
+        log("perform callback called with:");
+        log(request_json.as_str());
+        TendermintResponse::from_string("response")
     }
 }
 
@@ -223,16 +217,6 @@ extern "C" {
         height: JsValue,
     ) -> Result<JsValue, JsValue>;
 
-    #[wasm_bindgen(
-        catch,
-        method,
-        js_class = "NetworkingUtils",
-        js_name = "rpcCallWithStringifiedJson"
-    )]
-    async fn rpc_call_with_stringified_json(
-        this: &NetworkingUtils,
-        abci_query_payload_json: JsValue,
-    ) -> Result<JsValue, JsValue>;
 }
 
 // some js utils

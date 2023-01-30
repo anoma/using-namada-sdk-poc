@@ -4,6 +4,7 @@
 // this import is available there from the bindgen glue code
 import { response_query_serde_to_js_value } from "./usage_of_namada_sdk";
 
+// examples payload that is being augmented below
 const RPS_PAYLOAD = {
   id: "",
   jsonrpc: "2.0",
@@ -17,9 +18,7 @@ const RPS_PAYLOAD = {
 };
 
 export class NetworkingUtils {
-  constructor() {
-    console.log("NetworkingUtils.constructor");
-  }
+  constructor() {}
 
   rpcCall = async (
     path: string,
@@ -44,9 +43,10 @@ export class NetworkingUtils {
         result: { response: { info: string; value: string; proof?: string } };
       };
       const response = rpcResponseData.result.response;
+      // TODO: likely the best would be to just return these 3 pieces of data to Rust and
+      // convert the data there. Not to do any if this stuff here.
+      // Even better would be if the SDK would accept the data in that string format
       const { info, value, proof } = response;
-
-      // have to turn the borsh encoded data to byte array
       const utf8Encode = new TextEncoder();
       const valueAsByteArray = utf8Encode.encode(value);
       const responseQuery = response_query_serde_to_js_value(
@@ -59,40 +59,4 @@ export class NetworkingUtils {
       return Promise.reject("error while performing the network request");
     }
   };
-
-  rpcCallWithStringifiedJson = async (
-    abciQueryPayloadJson: string
-  ): Promise<any> => {
-    try {
-      const rpcResponse = await fetch("http://127.0.0.1:27657", {
-        method: "POST",
-        body: abciQueryPayloadJson,
-      });
-      const rpcResponseData = (await rpcResponse.json()) as {
-        result: { response: { info: string; value: string; proof?: string } };
-      };
-      const response = rpcResponseData.result.response;
-      const { info, value, proof } = response;
-
-      // have to turn the borsh encoded data to byte array
-      const utf8Encode = new TextEncoder();
-      const valueAsByteArray = utf8Encode.encode(value);
-      const responseQuery = response_query_serde_to_js_value(
-        valueAsByteArray,
-        info,
-        proof
-      );
-      return responseQuery;
-    } catch {
-      return Promise.reject("error while performing the network request");
-    }
-  };
-
-  //   method1 = async (someParameter: number): Promise<string> => {
-  //     return `got: ${someParameter} at NetworkingUtils.call`;
-  //   };
-
-  //   method2 = async (someParameter: string): Promise<string> => {
-  //     return `got: ${someParameter} at NetworkingUtils.call`;
-  //   };
 }

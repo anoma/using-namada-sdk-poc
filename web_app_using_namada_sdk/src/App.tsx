@@ -2,21 +2,26 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { init, performRequestFromUi } from "./utils/namadaSdk/index";
 function App() {
-  const [inputFieldContent, setInputFieldContent] = useState(
-    "atest1d9khqw36gguyx3p4g4rrjvfcx9pnv32rx3q5vd3kx5cn2wzxgs6n2v3kxycnx32z8q6nqs2x5anmwx"
+  // placeholder account to query the balance for
+  const [accountToQuery, setAccountToQuery] = useState(
+    "atest1v4ehgw36gsun2vpe8qcyg329xppnsdphxppy2333gscrgwpnggcrssecgfpy23fsx5eyxvjpqeulnk"
   );
+  // balance that will be feched by the SDK
+  const [balance, setBalance] = useState("");
+
+  // we initialize the wasm module
   useEffect(() => {
-    // we have to put this to async as we call async funcs
     const asyncBlock = async () => {
       await init();
     };
     asyncBlock();
   }, []);
 
+  // we trigger a function in Rust/WASM
   const fetchBalanceOfAddress = () => {
-    // we have to put this to async as we call async funcs
     const asyncBlock = async () => {
-      await performRequestFromUi(inputFieldContent);
+      const balance = await performRequestFromUi(accountToQuery);
+      setBalance(balance);
     };
     asyncBlock();
   };
@@ -26,9 +31,9 @@ function App() {
       <header className="App-header">
         <div style={{ display: "flex", flexDirection: "column", width: "50%" }}>
           <input
-            value={inputFieldContent}
+            value={accountToQuery}
             onChange={(event) => {
-              setInputFieldContent(event.target.value);
+              setAccountToQuery(event.target.value);
             }}
             style={{ height: "32px", margin: "0 0 16px" }}
           />
@@ -40,6 +45,8 @@ function App() {
           >
             query balance of address
           </button>
+          <div>balance:</div>
+          <div>NAM {balance} μ</div>
         </div>
       </header>
     </div>
