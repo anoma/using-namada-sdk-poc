@@ -1,10 +1,9 @@
-mod namada_sdk;
+mod namada_web_sdk;
 mod utils;
-mod web_namada;
 
+use namada_web_sdk::NamadaWebSdk;
 use std::str;
 use wasm_bindgen::prelude::*;
-use web_namada::get_token_balance_by_account_and_token;
 
 // This is just for being able to call perform_request from the testing UI
 // in the real situation the Namada SDK is calling
@@ -15,11 +14,18 @@ use web_namada::get_token_balance_by_account_and_token;
 // see how this is being called at web_app_using_namada_sdk/src/App.tsx:fetchBalanceOfAddress
 #[wasm_bindgen]
 pub async fn perform_request_from_ui(address_to_query: String) -> String {
-    // hardcoded NAM for now
+    // will come from the consuming web app
     let nam_address =
         "atest1v4ehgw36x3prswzxggunzv6pxqmnvdj9xvcyzvpsggeyvs3cg9qnywf589qnwvfsg5erg3fkl09rg5";
-    let token_balance =
-        get_token_balance_by_account_and_token(nam_address.to_string(), address_to_query).await;
+
+    // create web SDK instance
+    // the address will come from the consuming web app
+    let namada_web_sdk = NamadaWebSdk::new("http://127.0.0.1:27657".to_string());
+
+    // use it to get the balance
+    let token_balance = namada_web_sdk
+        .get_token_balance_by_account_and_token(nam_address.to_string(), address_to_query)
+        .await;
     token_balance.unwrap()
 }
 

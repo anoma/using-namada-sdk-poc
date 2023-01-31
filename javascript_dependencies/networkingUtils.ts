@@ -24,7 +24,8 @@ export class NetworkingUtils {
     path: string,
     prove: boolean,
     data: string = "",
-    height: string = "0"
+    height: string = "0",
+    rpcAddress: string
   ): Promise<any> => {
     try {
       const rpcRequest = {
