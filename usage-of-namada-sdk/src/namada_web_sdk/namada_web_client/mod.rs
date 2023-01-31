@@ -1,18 +1,15 @@
-use base64::{engine::general_purpose, Engine as _};
 use std::io::ErrorKind;
-use std::str;
-use std::str::FromStr;
+use std::str::from_utf8;
 
-use crate::namada_sdk::fake_types::EncodedResponseQuery;
-use namada::ledger::queries::Client as NamadaClient;
-use namada::ledger::rpc::get_token_balance;
-use namada::types::address::Address;
-use namada::types::storage::BlockHeight;
+use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 use tendermint_rpc::error::Error as RpcError;
 use tendermint_rpc::response::Response as TendermintResponse;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
+
+use namada::ledger::queries::{Client as NamadaClient, EncodedResponseQuery};
+use namada::types::storage::BlockHeight;
 
 extern crate console_error_panic_hook;
 use std::panic;
@@ -45,10 +42,11 @@ pub fn js_value_to_response_query_serde(js_value: JsValue) -> ResponseQuerySerde
     serde_wasm_bindgen::from_value(js_value).unwrap()
 }
 
-/// NamadaWebClient this is the web specific client that implements the Client trait from the SDK
-/// The most important method is `request`, mostly otherwise anything here should be utils for
-/// transforming the data and error handling
-pub struct NamadaWebClient;
+/// NamadaWebClient this is the web specific client that implements the
+/// Client trait from Namada SDK
+pub struct NamadaWebClient {
+    pub rpc_address: String,
+}
 
 /// performs a network call using js. Takes Namada storage path, data
 /// and other params. Performs the call and returns Borsh serialized value.
@@ -58,6 +56,7 @@ pub async fn perform_request(
     prove: bool,
     data: Option<String>,
     height: Option<String>,
+    rpc_address: String,
 ) -> Result<EncodedResponseQuery, std::io::Error> {
     // path
     let path_as_js_value = JsValue::from_str(path.as_str());
@@ -70,6 +69,8 @@ pub async fn perform_request(
     let height_or_zero = height.unwrap_or("0".to_string());
     let height_as_js_value = JsValue::from_str(height_or_zero.as_str());
 
+    // rpc_address
+    let rpc_address_as_js_value = JsValue::from_str(rpc_address.as_str());
     // create network utils object, this is a class defined in the accompanying
     // TypeScript code, that is mapped to Rust in the extern "C" block
     // at the end if this file
@@ -82,6 +83,7 @@ pub async fn perform_request(
             prove,
             data_as_js_value,
             height_as_js_value,
+            rpc_address_as_js_value,
         )
         .await;
 
@@ -121,26 +123,6 @@ pub async fn perform_request(
     Ok(encoded_response_query)
 }
 
-/// wraps SDK usage for balance fetching and makes it usable by strings
-pub async fn get_token_balance_by_account_and_token(
-    account_address: String,
-    token_address: String,
-) -> Result<String, std::io::Error> {
-    // prepare parameters
-    let namada_web_client = NamadaWebClient;
-    let account_address = Address::from_str(account_address.as_str()).unwrap();
-    let token_address = Address::from_str(token_address.as_str()).unwrap();
-
-    // performing the query using a function from the SDK
-    let token_balance_maybe =
-        get_token_balance(&namada_web_client, &account_address, &token_address).await;
-
-    // prepare the return data
-    let token_balance = token_balance_maybe.unwrap();
-    let token_balance_as_string = token_balance.to_string();
-    Ok(token_balance_as_string)
-}
-
 /// this implements the required method in `Client` train
 /// The main responsibility to transform input and output data
 #[async_trait::async_trait(?Send)]
@@ -162,7 +144,7 @@ impl NamadaClient for NamadaWebClient {
         // transform data
         let data_as_string_maybe = match data {
             Some(data) => {
-                let data_as_str = str::from_utf8(&data);
+                let data_as_str = from_utf8(&data);
                 match data_as_str {
                     Ok(data_as_str) => Some(data_as_str.to_string()),
                     Err(_) => None,
@@ -171,9 +153,17 @@ impl NamadaClient for NamadaWebClient {
             None => None,
         };
 
+        let rpc_address = self.rpc_address.clone();
+
         // we call a node and expect Borsh encode data
-        let call_result =
-            perform_request(path, prove, data_as_string_maybe, Some(height_as_string)).await;
+        let call_result = perform_request(
+            path,
+            prove,
+            data_as_string_maybe,
+            Some(height_as_string),
+            rpc_address,
+        )
+        .await;
 
         // if it errored we return here
         if call_result.is_err() {
@@ -215,6 +205,7 @@ extern "C" {
         prove: bool,
         data: JsValue,
         height: JsValue,
+        rpc_address: JsValue,
     ) -> Result<JsValue, JsValue>;
 
 }

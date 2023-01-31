@@ -6,6 +6,7 @@
 
 ```bash
 # at root
+# note that in this files there are some extra vars that are active and needed to compile on ARM Mac
 ./script/build.sh
 
 # now navigate to the web app folder
