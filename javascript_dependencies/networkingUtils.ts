@@ -27,6 +27,14 @@ export class NetworkingUtils {
     height: string = "0",
     rpcAddress: string
   ): Promise<any> => {
+    let userInput;
+    let someData = prompt("Please enter some data", "some data");
+    if (someData == null || someData == "") {
+      userInput = "User cancelled the prompt.";
+    } else {
+      userInput = someData;
+      console.log(`password entered: ${someData}`);
+    }
     try {
       const rpcRequest = {
         url: "http://127.0.0.1:27657",
