@@ -7,7 +7,7 @@
 ```bash
 # at root
 # note that in this files there are some extra vars that are active and needed to compile on ARM Mac
-./script/build.sh
+./scripts/build.sh
 
 # now navigate to the web app folder
 cd web_app_using_namada_sdk
